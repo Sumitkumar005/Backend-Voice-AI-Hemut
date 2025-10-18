@@ -13,9 +13,9 @@ try:
         raise ValueError("Missing SUPABASE_URL or SUPABASE_KEY environment variables")
     
     supabase: Client = create_client(supabase_url, supabase_key)
-    print("âœ… Supabase client initialized successfully")
+    print("Supabase client initialized successfully")
 except Exception as e:
-    print(f"âŒ Failed to initialize Supabase client: {e}")
+    print(f"Failed to initialize Supabase client: {e}")
     print(f"SUPABASE_URL exists: {bool(os.getenv('SUPABASE_URL'))}")
     print(f"SUPABASE_KEY exists: {bool(os.getenv('SUPABASE_KEY'))}")
     raise
@@ -38,7 +38,7 @@ def get_driver_by_phone(phone: str):
             return response.data[0]
         return None
     except Exception as e:
-        print(f"âŒ Database error getting driver by phone: {e}")
+        print(f" Database error getting driver by phone: {e}")
         return None
 
 def get_available_loads():
