@@ -84,7 +84,7 @@ async def create_outbound_call(driver_phone: str, driver_name: str, driver_id: s
     
     # Use the correct Twilio phone number ID
     payload["phoneNumberId"] = "5a59919f-b236-4e3e-af19-d61fb1791e8c"
-    print(f"ðŸ“ž Making call to: {driver_phone}")
+    print(f" Making call to: {driver_phone}")
     
     async with httpx.AsyncClient() as client:
         try:
@@ -96,9 +96,9 @@ async def create_outbound_call(driver_phone: str, driver_name: str, driver_id: s
             )
             
             if response.status_code == 201:
-                print(f"âœ… Call initiated successfully")
+                print(f"Call initiated successfully")
             else:
-                print(f"âŒ Call failed: {response.status_code}")
+                print(f"Call failed: {response.status_code}")
             
             response.raise_for_status()
             return response.json()
@@ -121,7 +121,7 @@ async def simulate_webhook_callback(driver_id: str, driver_name: str):
     
     scenario = random.choice(scenarios)
     
-    print(f"ðŸ§ª SIMULATING: Driver {driver_name} callback - Loaded: {scenario['is_loaded']}, Location: {scenario['location']}")
+    print(f"SIMULATING: Driver {driver_name} callback - Loaded: {scenario['is_loaded']}, Location: {scenario['location']}")
     
     # Update database just like a real webhook would
     db.update_driver_status(
@@ -140,4 +140,4 @@ async def simulate_webhook_callback(driver_id: str, driver_name: str):
         f"test_call_{driver_id}"
     )
     
-    print(f"âœ… SIMULATION COMPLETE: Updated driver {driver_id} status")
+    print(f"SIMULATION COMPLETE: Updated driver {driver_id} status")
