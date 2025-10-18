@@ -82,8 +82,9 @@ async def create_outbound_call(driver_phone: str, driver_name: str, driver_id: s
         }
     }
     
-    # Use the correct Twilio phone number ID
-    payload["phoneNumberId"] = "5a59919f-b236-4e3e-af19-d61fb1791e8c"
+    # Use the phone number ID from environment variable
+    if VAPI_PHONE_NUMBER_ID:
+        payload["phoneNumberId"] = VAPI_PHONE_NUMBER_ID
     print(f" Making call to: {driver_phone}")
     
     async with httpx.AsyncClient() as client:
