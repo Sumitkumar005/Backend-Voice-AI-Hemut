@@ -115,7 +115,16 @@ IMPORTANT: Be conversational and helpful. Let them talk about weather, road cond
         }
     }
     
-    if VAPI_PHONE_NUMBER_ID:
+    # Use Twilio for international calls (Indian numbers) since free Vapi numbers don't support them
+    if formatted_phone.startswith('+91') and TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN and TWILIO_PHONE_NUMBER:
+        payload["phoneNumber"] = {
+            "provider": "twilio",
+            "number": TWILIO_PHONE_NUMBER,
+            "twilioAccountSid": TWILIO_ACCOUNT_SID,
+            "twilioAuthToken": TWILIO_AUTH_TOKEN
+        }
+        print(f"📞 Using Twilio for Indian number: {formatted_phone}")
+    elif VAPI_PHONE_NUMBER_ID:
         payload["phoneNumberId"] = VAPI_PHONE_NUMBER_ID
         print(f"📞 Using Vapi phone number ID: {VAPI_PHONE_NUMBER_ID}")
     elif TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN and TWILIO_PHONE_NUMBER:
@@ -233,7 +242,16 @@ async def create_outbound_call(driver_phone: str, driver_name: str, driver_id: s
         }
     }
     
-    if VAPI_PHONE_NUMBER_ID:
+    # Use Twilio for international calls (Indian numbers) since free Vapi numbers don't support them
+    if formatted_phone.startswith('+91') and TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN and TWILIO_PHONE_NUMBER:
+        payload["phoneNumber"] = {
+            "provider": "twilio",
+            "number": TWILIO_PHONE_NUMBER,
+            "twilioAccountSid": TWILIO_ACCOUNT_SID,
+            "twilioAuthToken": TWILIO_AUTH_TOKEN
+        }
+        print(f"📞 Using Twilio for Indian number: {formatted_phone}")
+    elif VAPI_PHONE_NUMBER_ID:
         payload["phoneNumberId"] = VAPI_PHONE_NUMBER_ID
         print(f"📞 Using Vapi phone number ID: {VAPI_PHONE_NUMBER_ID}")
     elif TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN and TWILIO_PHONE_NUMBER:
