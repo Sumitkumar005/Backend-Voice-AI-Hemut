@@ -16,8 +16,19 @@ TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID")
 TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN")
 TWILIO_PHONE_NUMBER = os.getenv("TWILIO_PHONE_NUMBER")
 
+# Validate required environment variables
+if not VAPI_API_KEY:
+    print("❌ Warning: VAPI_API_KEY not set")
+
+if not (TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN and TWILIO_PHONE_NUMBER) and not VAPI_PHONE_NUMBER_ID:
+    print("❌ Warning: Neither Twilio credentials nor Vapi phone number ID configured")
+
 async def create_load_assignment_call(driver_phone: str, driver_name: str, driver_id: str, load: dict):
     """Create outbound call to driver for load assignment"""
+    
+    # Format phone number properly for Indian numbers
+    formatted_phone = format_indian_phone_number(driver_phone)
+    print(f"📞 Formatted phone for load assignment: {driver_phone} -> {formatted_phone}")
     
     headers = {
         "Authorization": f"Bearer {VAPI_API_KEY}",
@@ -29,7 +40,7 @@ async def create_load_assignment_call(driver_phone: str, driver_name: str, drive
     
     payload = {
         "customer": {
-            "number": driver_phone,
+            "number": formatted_phone,
             "name": driver_name
         },
         "assistantId": None,
@@ -106,11 +117,22 @@ IMPORTANT: Be conversational and helpful. Let them talk about weather, road cond
         }
     }
     
-    # Use the phone number ID from environment variable
-    if VAPI_PHONE_NUMBER_ID:
+    # Configure Twilio for Indian numbers if credentials are available
+    if TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN and TWILIO_PHONE_NUMBER:
+        payload["phoneNumber"] = {
+            "twilioAccountSid": TWILIO_ACCOUNT_SID,
+            "twilioAuthToken": TWILIO_AUTH_TOKEN,
+            "number": TWILIO_PHONE_NUMBER
+        }
+        print(f"📞 Using Twilio configuration for load assignment call")
+    elif VAPI_PHONE_NUMBER_ID:
         payload["phoneNumberId"] = VAPI_PHONE_NUMBER_ID
+        print(f"📞 Using Vapi phone number ID for load assignment")
+    else:
+        print(f"❌ No phone number configuration found")
+        raise ValueError("No phone number configuration available")
     
-    print(f"📞 Making load assignment call to: {driver_phone}")
+    print(f"📞 Making load assignment call to: {formatted_phone}")
     
     async with httpx.AsyncClient() as client:
         try:
@@ -130,11 +152,33 @@ IMPORTANT: Be conversational and helpful. Let them talk about weather, road cond
             return response.json()
         except httpx.HTTPError as e:
             print(f"❌ Call Error: {e}")
+            if hasattr(e, 'response') and e.response:
+                print(f"❌ Response status: {e.response.status_code}")
+                print(f"❌ Response body: {e.response.text}")
             raise
+
+def format_indian_phone_number(phone: str) -> str:
+    """Format phone number for Indian numbers with proper E.164 format"""
+    # Remove any spaces, dashes, or other characters
+    phone = ''.join(filter(str.isdigit, phone))
+    
+    # Handle different Indian number formats
+    if phone.startswith('91') and len(phone) == 12:
+        return f"+{phone}"
+    elif len(phone) == 10:
+        return f"+91{phone}"
+    elif phone.startswith('0') and len(phone) == 11:
+        return f"+91{phone[1:]}"
+    else:
+        # Return as is with + if it looks like it already has country code
+        return f"+{phone}" if not phone.startswith('+') else phone
 
 async def create_outbound_call(driver_phone: str, driver_name: str, driver_id: str):
     """Create outbound call to driver via Vapi"""
     
+    # Format phone number properly for Indian numbers
+    formatted_phone = format_indian_phone_number(driver_phone)
+    print(f"📞 Formatted phone: {driver_phone} -> {formatted_phone}")
 
     headers = {
         "Authorization": f"Bearer {VAPI_API_KEY}",
@@ -144,7 +188,7 @@ async def create_outbound_call(driver_phone: str, driver_name: str, driver_id: s
     # Use custom Twilio if available, otherwise use Vapi number
     payload = {
         "customer": {
-            "number": driver_phone,
+            "number": formatted_phone,
             "name": driver_name
         },
         "assistantId": None,  # We'll use inline assistant
@@ -198,10 +242,22 @@ async def create_outbound_call(driver_phone: str, driver_name: str, driver_id: s
         }
     }
     
-    # Use the phone number ID from environment variable
-    if VAPI_PHONE_NUMBER_ID:
+    # Configure Twilio for Indian numbers if credentials are available
+    if TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN and TWILIO_PHONE_NUMBER:
+        payload["phoneNumber"] = {
+            "twilioAccountSid": TWILIO_ACCOUNT_SID,
+            "twilioAuthToken": TWILIO_AUTH_TOKEN,
+            "number": TWILIO_PHONE_NUMBER
+        }
+        print(f"📞 Using Twilio configuration for call")
+    elif VAPI_PHONE_NUMBER_ID:
         payload["phoneNumberId"] = VAPI_PHONE_NUMBER_ID
-    print(f" Making call to: {driver_phone}")
+        print(f"📞 Using Vapi phone number ID")
+    else:
+        print(f"❌ No phone number configuration found")
+        raise ValueError("No phone number configuration available")
+    
+    print(f"📞 Making call to: {formatted_phone}")
     
     async with httpx.AsyncClient() as client:
         try:
