@@ -117,22 +117,27 @@ IMPORTANT: Be conversational and helpful. Let them talk about weather, road cond
         }
     }
     
-    # Configure Twilio for Indian numbers if credentials are available
-    if TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN and TWILIO_PHONE_NUMBER:
+    # Configure phone number - try Vapi phone number first, then Twilio
+    if VAPI_PHONE_NUMBER_ID:
+        payload["phoneNumberId"] = VAPI_PHONE_NUMBER_ID
+        print(f"📞 Using Vapi phone number ID for load assignment: {VAPI_PHONE_NUMBER_ID}")
+    elif TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN and TWILIO_PHONE_NUMBER:
+        # For Twilio integration with Vapi, use phoneNumber object
         payload["phoneNumber"] = {
+            "provider": "twilio",
+            "number": TWILIO_PHONE_NUMBER,
             "twilioAccountSid": TWILIO_ACCOUNT_SID,
-            "twilioAuthToken": TWILIO_AUTH_TOKEN,
-            "number": TWILIO_PHONE_NUMBER
+            "twilioAuthToken": TWILIO_AUTH_TOKEN
         }
         print(f"📞 Using Twilio configuration for load assignment call")
-    elif VAPI_PHONE_NUMBER_ID:
-        payload["phoneNumberId"] = VAPI_PHONE_NUMBER_ID
-        print(f"📞 Using Vapi phone number ID for load assignment")
     else:
         print(f"❌ No phone number configuration found")
+        print(f"VAPI_PHONE_NUMBER_ID: {VAPI_PHONE_NUMBER_ID}")
+        print(f"TWILIO_ACCOUNT_SID: {bool(TWILIO_ACCOUNT_SID)}")
         raise ValueError("No phone number configuration available")
     
     print(f"📞 Making load assignment call to: {formatted_phone}")
+    print(f"📞 Load assignment payload: {payload}")  # Debug logging
     
     async with httpx.AsyncClient() as client:
         try:
@@ -242,22 +247,27 @@ async def create_outbound_call(driver_phone: str, driver_name: str, driver_id: s
         }
     }
     
-    # Configure Twilio for Indian numbers if credentials are available
-    if TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN and TWILIO_PHONE_NUMBER:
+    # Configure phone number - try Vapi phone number first, then Twilio
+    if VAPI_PHONE_NUMBER_ID:
+        payload["phoneNumberId"] = VAPI_PHONE_NUMBER_ID
+        print(f"📞 Using Vapi phone number ID: {VAPI_PHONE_NUMBER_ID}")
+    elif TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN and TWILIO_PHONE_NUMBER:
+        # For Twilio integration with Vapi, use phoneNumber object
         payload["phoneNumber"] = {
+            "provider": "twilio",
+            "number": TWILIO_PHONE_NUMBER,
             "twilioAccountSid": TWILIO_ACCOUNT_SID,
-            "twilioAuthToken": TWILIO_AUTH_TOKEN,
-            "number": TWILIO_PHONE_NUMBER
+            "twilioAuthToken": TWILIO_AUTH_TOKEN
         }
         print(f"📞 Using Twilio configuration for call")
-    elif VAPI_PHONE_NUMBER_ID:
-        payload["phoneNumberId"] = VAPI_PHONE_NUMBER_ID
-        print(f"📞 Using Vapi phone number ID")
     else:
         print(f"❌ No phone number configuration found")
+        print(f"VAPI_PHONE_NUMBER_ID: {VAPI_PHONE_NUMBER_ID}")
+        print(f"TWILIO_ACCOUNT_SID: {bool(TWILIO_ACCOUNT_SID)}")
         raise ValueError("No phone number configuration available")
     
     print(f"📞 Making call to: {formatted_phone}")
+    print(f"📞 Payload: {payload}")  # Debug logging
     
     async with httpx.AsyncClient() as client:
         try:
