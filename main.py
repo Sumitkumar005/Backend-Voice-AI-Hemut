@@ -100,7 +100,61 @@ def get_logs():
         print(f"❌ Error getting logs: {e}", file=sys.stderr)
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/api/make-call")
+@app.post("/api/assign-load", tags=["Load Management"], summary="Assign Load to Driver")
+async def assign_load(request: Request):
+    """
+    Assign a specific load to a driver and initiate AI call with load details.
+    
+    Expected payload: {"driver_id": "uuid", "load_id": "uuid"}
+    """
+    try:
+        body = await request.json()
+        driver_id = body.get("driver_id")
+        load_id = body.get("load_id")
+        
+        if not driver_id or not load_id:
+            raise HTTPException(status_code=400, detail="Both driver_id and load_id are required")
+        
+        # Get driver and load details
+        driver = db.get_driver_by_id(driver_id)
+        load = db.get_load_by_id(load_id)
+        
+        if not driver:
+            raise HTTPException(status_code=404, detail="Driver not found")
+        if not load:
+            raise HTTPException(status_code=404, detail="Load not found")
+        if load.get('status') != 'available':
+            raise HTTPException(status_code=400, detail="Load is not available for assignment")
+        
+        # Assign load to driver
+        db.assign_load_to_driver(load_id, driver_id)
+        
+        # Make AI call with load details
+        call_response = await vapi_handler.create_load_assignment_call(
+            driver['phone'],
+            driver['name'],
+            driver['id'],
+            load
+        )
+        
+        return {
+            "success": True,
+            "message": f"Load {load.get('load_number', load_id)} assigned to {driver['name']}",
+            "call_id": call_response.get('id'),
+            "assignment": {
+                "driver": driver['name'],
+                "load": load.get('load_number', load_id),
+                "pickup": load.get('pickup_location'),
+                "delivery": load.get('delivery_location')
+            }
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Error assigning load: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/make-call", tags=["AI Calls"], summary="Initiate AI Voice Call")
 async def make_call(request: MakeCallRequest):
     """Initiate outbound call to a driver"""
     try:
@@ -172,7 +226,7 @@ async def vapi_webhook(request: Request):
             else:
                 func_call = body.get("message", {}).get("functionCall", {})
             
-            if func_call.get("name") in ["update_driver_status", "updateLoadStatus"]:
+            if func_call.get("name") in ["update_driver_status", "updateLoadStatus", "updateLoadAssignment"]:
                 params = func_call.get("parameters", {})
                 
                 # Get driver from call metadata or phone
@@ -215,25 +269,55 @@ async def vapi_webhook(request: Request):
                         print(f"❌ No phone number found anywhere in webhook data")
                 
                 if driver_id:
-                    # Handle both function formats
-                    if func_call.get("name") == "updateLoadStatus":
+                    # Handle load assignment responses
+                    if func_call.get("name") == "updateLoadAssignment":
+                        assignment_status = params.get('status', 'needs_discussion')
+                        reason = params.get('reason', '')
+                        estimated_pickup = params.get('estimated_pickup', '')
+                        concerns = params.get('concerns', '')
+                        
+                        # Update load assignment status
+                        call_metadata = call_data.get('metadata', {})
+                        load_id = call_metadata.get('load_id')
+                        
+                        if load_id:
+                            db.update_load_assignment_status(load_id, driver_id, assignment_status, reason, estimated_pickup, concerns)
+                        
+                        # Create call log for load assignment
+                        db.create_load_assignment_log(driver_id, load_id, assignment_status, reason, concerns, call_data.get('id'))
+                        
+                        print(f"✅ Load assignment updated: {assignment_status}")
+                        
+                    # Handle regular status updates
+                    elif func_call.get("name") == "updateLoadStatus":
                         status = params.get('status', 'Available')
                         is_loaded = status == "Loaded"
                         location = params.get('location', 'Unknown')
                         reason = params.get('reason', '')
+                        
+                        # Update driver status
+                        db.update_driver_status(driver_id, is_loaded, location, reason)
+                        
+                        # Create call log
+                        db.create_call_log(driver_id, is_loaded, reason, location, call_data.get('id'))
+                        
+                        status_text = "Loaded" if is_loaded else "Available"
+                        print(f"✅ Updated driver status to: {status_text}")
+                        
                     else:
+                        # Handle old format
                         is_loaded = params.get('is_loaded', False)
                         location = params.get('location', 'Unknown')
                         reason = params.get('reason_not_loaded', '')
-                    
-                    # Update driver status
-                    db.update_driver_status(driver_id, is_loaded, location, reason)
-                    
-                    # Create call log
-                    db.create_call_log(driver_id, is_loaded, reason, location, call_data.get('id'))
-                    
-                    status_text = "Loaded" if is_loaded else "Available"
-                    print(f"✅ Updated driver status to: {status_text}")
+                        
+                        # Update driver status
+                        db.update_driver_status(driver_id, is_loaded, location, reason)
+                        
+                        # Create call log
+                        db.create_call_log(driver_id, is_loaded, reason, location, call_data.get('id'))
+                        
+                        status_text = "Loaded" if is_loaded else "Available"
+                        print(f"✅ Updated driver status to: {status_text}")
                 else:
                     print(f"❌ Driver not found")
         

@@ -16,6 +16,122 @@ TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID")
 TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN")
 TWILIO_PHONE_NUMBER = os.getenv("TWILIO_PHONE_NUMBER")
 
+async def create_load_assignment_call(driver_phone: str, driver_name: str, driver_id: str, load: dict):
+    """Create outbound call to driver for load assignment"""
+    
+    headers = {
+        "Authorization": f"Bearer {VAPI_API_KEY}",
+        "Content-Type": "application/json"
+    }
+    
+    # Create detailed load information
+    load_details = f"Load {load.get('load_number', 'N/A')} from {load.get('pickup_location', 'pickup location')} to {load.get('delivery_location', 'delivery location')}, weight {load.get('weight', 'unknown')} lbs"
+    
+    payload = {
+        "customer": {
+            "number": driver_phone,
+            "name": driver_name
+        },
+        "assistantId": None,
+        "assistant": {
+            "firstMessage": f"Hi {driver_name}, this is Hemut AI. I have a new load assignment for you: {load_details}. Can you confirm if you can take this load?",
+            "model": {
+                "provider": "openai",
+                "model": "gpt-4o",
+                "messages": [
+                    {
+                        "role": "system",
+                        "content": f"""You are a friendly dispatch assistant for Hemut trucking company. You're calling {driver_name} about a load assignment.
+
+LOAD DETAILS:
+- Load Number: {load.get('load_number', 'N/A')}
+- Pickup: {load.get('pickup_location', 'Unknown')}
+- Delivery: {load.get('delivery_location', 'Unknown')}
+- Weight: {load.get('weight', 'Unknown')} lbs
+
+YOUR CONVERSATION FLOW:
+1. Start by confirming the load assignment details
+2. Ask if they can accept this load
+3. If YES: Ask about estimated pickup time and any concerns
+4. If NO: Ask for the reason and when they might be available
+5. Be conversational - they can ask about weather, road conditions, or other concerns
+6. Keep the conversation natural and helpful
+7. End by calling the updateLoadAssignment function with their response
+
+IMPORTANT: Be conversational and helpful. Let them talk about weather, road conditions, or any concerns they have. This should feel like talking to a real dispatcher."""
+                    }
+                ],
+                "functions": [
+                    {
+                        "name": "updateLoadAssignment",
+                        "description": "Update the load assignment status based on driver response",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {
+                                "status": {
+                                    "type": "string",
+                                    "enum": ["accepted", "rejected", "needs_discussion"],
+                                    "description": "Driver's response to the load assignment"
+                                },
+                                "reason": {
+                                    "type": "string",
+                                    "description": "Driver's reason or additional comments"
+                                },
+                                "estimated_pickup": {
+                                    "type": "string",
+                                    "description": "Driver's estimated pickup time if accepted"
+                                },
+                                "concerns": {
+                                    "type": "string",
+                                    "description": "Any concerns about weather, road conditions, etc."
+                                }
+                            },
+                            "required": ["status", "reason"]
+                        }
+                    }
+                ]
+            },
+            "voice": {
+                "voiceId": "Elliot",
+                "provider": "vapi"
+            },
+            "recordingEnabled": True,
+            "endCallMessage": "Thank you! I'll update the system with your response. Drive safe!",
+            "endCallFunctionEnabled": True,
+            "metadata": {
+                "driver_id": driver_id,
+                "load_id": load.get('id'),
+                "call_type": "load_assignment"
+            }
+        }
+    }
+    
+    # Use the phone number ID from environment variable
+    if VAPI_PHONE_NUMBER_ID:
+        payload["phoneNumberId"] = VAPI_PHONE_NUMBER_ID
+    
+    print(f"📞 Making load assignment call to: {driver_phone}")
+    
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.post(
+                f"{VAPI_BASE_URL}/call/phone",
+                json=payload,
+                headers=headers,
+                timeout=30.0
+            )
+            
+            if response.status_code == 201:
+                print(f"✅ Load assignment call initiated successfully")
+            else:
+                print(f"❌ Call failed: {response.status_code}")
+            
+            response.raise_for_status()
+            return response.json()
+        except httpx.HTTPError as e:
+            print(f"❌ Call Error: {e}")
+            raise
+
 async def create_outbound_call(driver_phone: str, driver_name: str, driver_id: str):
     """Create outbound call to driver via Vapi"""
     

@@ -30,6 +30,15 @@ def get_driver_by_id(driver_id: str):
     response = supabase.table("drivers").select("*").eq("id", driver_id).single().execute()
     return response.data
 
+def get_load_by_id(load_id: str):
+    """Get single load by ID"""
+    try:
+        response = supabase.table("loads").select("*").eq("id", load_id).single().execute()
+        return response.data
+    except Exception as e:
+        print(f"❌ Error getting load by ID: {e}")
+        return None
+
 def get_driver_by_phone(phone: str):
     """Get driver by phone number"""
     try:
@@ -88,3 +97,46 @@ def assign_load_to_driver(load_id: str, driver_id: str):
     supabase.table("drivers").update({
         "is_loaded": True
     }).eq("id", driver_id).execute()
+
+def update_load_assignment_status(load_id: str, driver_id: str, status: str, reason: str, estimated_pickup: str, concerns: str):
+    """Update load assignment status based on driver response"""
+    try:
+        # Update load status based on driver response
+        if status == "accepted":
+            load_status = "confirmed"
+        elif status == "rejected":
+            load_status = "available"  # Make available for reassignment
+        else:
+            load_status = "pending"  # Needs discussion
+        
+        supabase.table("loads").update({
+            "status": load_status,
+            "driver_response": status,
+            "response_reason": reason,
+            "estimated_pickup": estimated_pickup,
+            "driver_concerns": concerns
+        }).eq("id", load_id).execute()
+        
+        print(f"✅ Load {load_id} status updated to {load_status}")
+        
+    except Exception as e:
+        print(f"❌ Error updating load assignment: {e}")
+
+def create_load_assignment_log(driver_id: str, load_id: str, status: str, reason: str, concerns: str, call_sid: str = None):
+    """Create a log entry for load assignment call"""
+    try:
+        supabase.table("call_logs").insert({
+            "driver_id": driver_id,
+            "call_sid": call_sid,
+            "call_type": "load_assignment",
+            "load_id": load_id,
+            "assignment_status": status,
+            "reason_not_loaded": reason,
+            "driver_concerns": concerns,
+            "current_location": "N/A"
+        }).execute()
+        
+        print(f"✅ Load assignment call logged")
+        
+    except Exception as e:
+        print(f"❌ Error creating load assignment log: {e}")
