@@ -11,12 +11,10 @@ VAPI_API_KEY = os.getenv("VAPI_API_KEY")
 VAPI_PHONE_NUMBER_ID = os.getenv("VAPI_PHONE_NUMBER")
 VAPI_BASE_URL = "https://api.vapi.ai"
 
-# Twilio credentials for international calls
 TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID")
 TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN")
 TWILIO_PHONE_NUMBER = os.getenv("TWILIO_PHONE_NUMBER")
 
-# Validate required environment variables
 if not VAPI_API_KEY:
     print("⚠️ Warning: VAPI_API_KEY not set")
 
@@ -26,7 +24,6 @@ if not (TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN and TWILIO_PHONE_NUMBER) and no
 async def create_load_assignment_call(driver_phone: str, driver_name: str, driver_id: str, load: dict):
     """Create outbound call to driver for load assignment"""
     
-    # Format phone number properly for Indian numbers
     formatted_phone = format_indian_phone_number(driver_phone)
     print(f"📞 Formatted phone for load assignment: {driver_phone} -> {formatted_phone}")
     
@@ -35,7 +32,6 @@ async def create_load_assignment_call(driver_phone: str, driver_name: str, drive
         "Content-Type": "application/json"
     }
     
-    # Create detailed load information
     load_details = f"Load {load.get('load_number', 'N/A')} from {load.get('pickup_location', 'pickup location')} to {load.get('delivery_location', 'delivery location')}, weight {load.get('weight', 'unknown')} lbs"
     
     payload = {
@@ -104,18 +100,34 @@ IMPORTANT: Be conversational and helpful. Let them talk about weather, road cond
                     }
                 ]
             },
-            "voice": "jennifer-playht",
+            "voice": {
+                "provider": "playht",
+                "voiceId": "jennifer"
+            },
             "recordingEnabled": True,
             "endCallMessage": "Thank you! I'll update the system with your response. Drive safe!",
             "endCallFunctionEnabled": True
         },
-        "phoneNumberId": VAPI_PHONE_NUMBER_ID,
         "metadata": {
             "driver_id": driver_id,
             "load_id": load.get('id'),
             "call_type": "load_assignment"
         }
     }
+    
+    if VAPI_PHONE_NUMBER_ID:
+        payload["phoneNumberId"] = VAPI_PHONE_NUMBER_ID
+        print(f"📞 Using Vapi phone number ID: {VAPI_PHONE_NUMBER_ID}")
+    elif TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN and TWILIO_PHONE_NUMBER:
+        payload["phoneNumber"] = {
+            "provider": "twilio",
+            "number": TWILIO_PHONE_NUMBER,
+            "twilioAccountSid": TWILIO_ACCOUNT_SID,
+            "twilioAuthToken": TWILIO_AUTH_TOKEN
+        }
+        print(f"📞 Using Twilio configuration")
+    else:
+        raise ValueError("No phone number configuration available")
     
     print(f"📞 Making load assignment call to: {formatted_phone}")
     
@@ -141,10 +153,8 @@ IMPORTANT: Be conversational and helpful. Let them talk about weather, road cond
 
 def format_indian_phone_number(phone: str) -> str:
     """Format phone number for Indian numbers with proper E.164 format"""
-    # Remove any spaces, dashes, or other characters
     phone = ''.join(filter(str.isdigit, phone))
     
-    # Handle different Indian number formats
     if phone.startswith('91') and len(phone) == 12:
         return f"+{phone}"
     elif len(phone) == 10:
@@ -152,13 +162,11 @@ def format_indian_phone_number(phone: str) -> str:
     elif phone.startswith('0') and len(phone) == 11:
         return f"+91{phone[1:]}"
     else:
-        # Return as is with + if it looks like it already has country code
         return f"+{phone}" if not phone.startswith('+') else phone
 
 async def create_outbound_call(driver_phone: str, driver_name: str, driver_id: str):
     """Create outbound call to driver via Vapi"""
     
-    # Format phone number properly for Indian numbers
     formatted_phone = format_indian_phone_number(driver_phone)
     print(f"📞 Formatted phone: {driver_phone} -> {formatted_phone}")
 
@@ -212,16 +220,32 @@ async def create_outbound_call(driver_phone: str, driver_name: str, driver_id: s
                     }
                 ]
             },
-            "voice": "jennifer-playht",
+            "voice": {
+                "provider": "playht",
+                "voiceId": "jennifer"
+            },
             "recordingEnabled": True,
             "endCallMessage": "Goodbye.",
             "endCallFunctionEnabled": True
         },
-        "phoneNumberId": VAPI_PHONE_NUMBER_ID,
         "metadata": {
             "driver_id": driver_id
         }
     }
+    
+    if VAPI_PHONE_NUMBER_ID:
+        payload["phoneNumberId"] = VAPI_PHONE_NUMBER_ID
+        print(f"📞 Using Vapi phone number ID: {VAPI_PHONE_NUMBER_ID}")
+    elif TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN and TWILIO_PHONE_NUMBER:
+        payload["phoneNumber"] = {
+            "provider": "twilio",
+            "number": TWILIO_PHONE_NUMBER,
+            "twilioAccountSid": TWILIO_ACCOUNT_SID,
+            "twilioAuthToken": TWILIO_AUTH_TOKEN
+        }
+        print(f"📞 Using Twilio configuration")
+    else:
+        raise ValueError("No phone number configuration available")
     
     print(f"📞 Making call to: {formatted_phone}")
     
@@ -247,9 +271,8 @@ async def create_outbound_call(driver_phone: str, driver_name: str, driver_id: s
 
 async def simulate_webhook_callback(driver_id: str, driver_name: str):
     """Simulate a webhook callback for testing purposes"""
-    await asyncio.sleep(5)  # Wait 5 seconds to simulate call duration
+    await asyncio.sleep(5)
     
-    # Generate random realistic responses
     scenarios = [
         {"is_loaded": True, "location": "Dallas, TX", "reason": None},
         {"is_loaded": True, "location": "Chicago, IL", "reason": None},
@@ -262,7 +285,6 @@ async def simulate_webhook_callback(driver_id: str, driver_name: str):
     
     print(f"SIMULATING: Driver {driver_name} callback - Loaded: {scenario['is_loaded']}, Location: {scenario['location']}")
     
-    # Update database just like a real webhook would
     db.update_driver_status(
         driver_id,
         scenario['is_loaded'],
@@ -270,7 +292,6 @@ async def simulate_webhook_callback(driver_id: str, driver_name: str):
         scenario['reason']
     )
     
-    # Create call log
     db.create_call_log(
         driver_id,
         scenario['is_loaded'],
