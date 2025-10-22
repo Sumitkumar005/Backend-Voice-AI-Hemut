@@ -209,7 +209,6 @@ async def vapi_webhook(request: Request):
         event_type = body.get("message", {}).get("type") or body.get("type")
         
         print(f"📥 Webhook received: {event_type}")
-        print(f"🔍 Full webhook body: {body}")
         
         # Handle function call event (both formats)
         if event_type in ["function-call", "tool-calls"]:
@@ -227,16 +226,12 @@ async def vapi_webhook(request: Request):
             else:
                 func_call = body.get("message", {}).get("functionCall", {})
             
-            print(f"🔍 Function call details: {func_call}")
-            
-            if func_call.get("name") in ["update_driver_status", "updateLoadStatus", "updateLoadAssignment", "updateDriverStatus"]:
+            if func_call.get("name") in ["update_driver_status", "updateLoadStatus", "updateLoadAssignment"]:
                 params = func_call.get("parameters", {})
                 
                 # Get driver from call metadata or phone
                 call_data = body.get("call", {})
-                print(f"🔍 Call data: {call_data}")
                 driver_id = call_data.get("metadata", {}).get("driver_id") if call_data else None
-                print(f"🔍 Driver ID from metadata: {driver_id}")
                 
                 if not driver_id:
                     # Try different locations for phone number
@@ -281,26 +276,15 @@ async def vapi_webhook(request: Request):
                         estimated_pickup = params.get('estimated_pickup', '')
                         concerns = params.get('concerns', '')
                         
-                        print(f"🔍 Processing updateLoadAssignment: status={assignment_status}, reason={reason}, pickup={estimated_pickup}, concerns={concerns}")
-                        
                         # Update load assignment status
                         call_metadata = call_data.get('metadata', {})
                         load_id = call_metadata.get('load_id')
-                        print(f"🔍 Load ID from metadata: {load_id}")
                         
                         if load_id:
-                            try:
-                                db.update_load_assignment_status(load_id, driver_id, assignment_status, reason, estimated_pickup, concerns)
-                                print(f"✅ Load assignment status updated in database")
-                            except Exception as e:
-                                print(f"❌ Error updating load assignment: {e}")
+                            db.update_load_assignment_status(load_id, driver_id, assignment_status, reason, estimated_pickup, concerns)
                         
                         # Create call log for load assignment
-                        try:
-                            db.create_load_assignment_log(driver_id, load_id, assignment_status, reason, concerns, call_data.get('id'))
-                            print(f"✅ Load assignment call log created")
-                        except Exception as e:
-                            print(f"❌ Error creating load assignment log: {e}")
+                        db.create_load_assignment_log(driver_id, load_id, assignment_status, reason, concerns, call_data.get('id'))
                         
                         print(f"✅ Load assignment updated: {assignment_status}")
                         
@@ -311,21 +295,11 @@ async def vapi_webhook(request: Request):
                         location = params.get('location', 'Unknown')
                         reason = params.get('reason', '')
                         
-                        print(f"🔍 Processing updateLoadStatus: status={status}, is_loaded={is_loaded}, location={location}, reason={reason}")
-                        
                         # Update driver status
-                        try:
-                            db.update_driver_status(driver_id, is_loaded, location, reason)
-                            print(f"✅ Driver status updated in database")
-                        except Exception as e:
-                            print(f"❌ Error updating driver status: {e}")
+                        db.update_driver_status(driver_id, is_loaded, location, reason)
                         
                         # Create call log
-                        try:
-                            db.create_call_log(driver_id, is_loaded, reason, location, call_data.get('id'))
-                            print(f"✅ Call log created in database")
-                        except Exception as e:
-                            print(f"❌ Error creating call log: {e}")
+                        db.create_call_log(driver_id, is_loaded, reason, location, call_data.get('id'))
                         
                         status_text = "Loaded" if is_loaded else "Available"
                         print(f"✅ Updated driver status to: {status_text}")
@@ -356,45 +330,6 @@ async def vapi_webhook(request: Request):
     except Exception as e:
         print(f"❌ Webhook error: {e}", file=sys.stderr)
         return {"status": "error", "message": str(e)}
-
-@app.post("/api/test-webhook")
-async def test_webhook_processing(request: Request):
-    """Test webhook processing with sample data"""
-    try:
-        # Sample webhook data for testing
-        test_data = {
-            "message": {
-                "type": "function-call",
-                "functionCall": {
-                    "name": "updateLoadStatus",
-                    "parameters": {
-                        "status": "Loaded",
-                        "reason": "Test call completed",
-                        "location": "Test Location"
-                    }
-                }
-            },
-            "call": {
-                "id": "test-call-123",
-                "metadata": {
-                    "driver_id": "test-driver-id"
-                }
-            }
-        }
-        
-        # Process the test data through webhook logic
-        result = await vapi_webhook(request)
-        
-        return {
-            "success": True,
-            "message": "Webhook test completed",
-            "result": result
-        }
-    except Exception as e:
-        return {
-            "success": False,
-            "error": str(e)
-        }
 
 @app.get("/health")
 def health_check():
